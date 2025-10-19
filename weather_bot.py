@@ -6,7 +6,7 @@ TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
 
 def get_weather():
-    """오전 7시에 오늘 하루 날씨 정보"""
+    """오늘 하루 날씨 정보"""
     try:
         lat, lon = 37.5665, 126.9780
         
@@ -18,7 +18,7 @@ def get_weather():
             'hourly': 'temperature_2m,precipitation_probability,weather_code,precipitation',
             'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,sunrise,sunset',
             'timezone': 'Asia/Seoul',
-            'forecast_days': 1
+            'forecast_days': 2
         }
         
         response = requests.get(url, params=params)
@@ -41,19 +41,33 @@ def get_weather():
         wind = current['wind_speed_10m']
         weather_now = weather_codes.get(current['weather_code'], '알 수 없음')
         
+        # 현재 시간 확인
+        now = datetime.now()
+        current_hour = now.hour
+        
+        # 오전 7시 이전이면 오늘(0), 이후면 내일(1) 날씨 표시
+        day_index = 0 if current_hour < 7 else 0
+        day_label = "오늘"
+        
         daily = data['daily']
-        temp_max = daily['temperature_2m_max'][0]
-        temp_min = daily['temperature_2m_min'][0]
-        rain_prob = daily['precipitation_probability_max'][0]
-        rain_sum = daily['precipitation_sum'][0]
+        temp_max = daily['temperature_2m_max'][day_index]
+        temp_min = daily['temperature_2m_min'][day_index]
+        rain_prob = daily['precipitation_probability_max'][day_index]
+        rain_sum = daily['precipitation_sum'][day_index]
         
-        sunrise = datetime.fromisoformat(daily['sunrise'][0]).strftime('%H:%M')
-        sunset = datetime.fromisoformat(daily['sunset'][0]).strftime('%H:%M')
+        sunrise = datetime.fromisoformat(daily['sunrise'][day_index]).strftime('%H:%M')
+        sunset = datetime.fromisoformat(daily['sunset'][day_index]).strftime('%H:%M')
         
-        today = datetime.now().strftime('%Y년 %m월 %d일 (%A)')
+        # 표시할 날짜
+        if day_index == 0:
+            display_date = now.strftime('%Y년 %m월 %d일 (%A)')
+        else:
+            from datetime import timedelta
+            tomorrow = now + timedelta(days=1)
+            display_date = tomorrow.strftime('%Y년 %m월 %d일 (%A)')
         
-        message = f"""🌤 오늘의 서울 날씨
-{today}
+        message = f"""🌤 {day_label}의 서울 날씨
+{display_date}
 
 ━━━━━━━━━━━━━━━
 📍 현재 날씨
@@ -63,7 +77,7 @@ def get_weather():
 💨 바람: {wind} km/h
 
 ━━━━━━━━━━━━━━━
-📊 오늘 예상
+📊 {day_label} 예상
 🔺 최고: {temp_max}°C
 🔻 최저: {temp_min}°C
 ☔️ 강수확률: {rain_prob}%"""
@@ -80,15 +94,19 @@ def get_weather():
 ⏰ 시간대별 날씨 (3시간 간격)
 """
         
-        # 오전 7시부터 3시간 간격으로 표시
+        # 시간대별 날씨
         hourly = data['hourly']
-        target_hours = [7, 10, 13, 16, 19, 22]  # 오전 7시부터 3시간 간격
+        target_hours = [7, 10, 13, 16, 19, 22]
         
+        # 오늘 날짜 구하기
+        target_date = now.date()
+        
+        displayed_count = 0
         for i in range(len(hourly['time'])):
             time_str = datetime.fromisoformat(hourly['time'][i])
-            hour = time_str.hour
             
-            if hour in target_hours:
+            # 오늘 날짜의 시간대만 표시
+            if time_str.date() == target_date and time_str.hour in target_hours:
                 time_display = time_str.strftime('%H시')
                 temp_h = hourly['temperature_2m'][i]
                 rain_h = hourly['precipitation_probability'][i]
@@ -101,6 +119,12 @@ def get_weather():
                     message += f" ☔️{rain_h}%"
                 if precip_h > 0:
                     message += f" ({precip_h}mm)"
+                
+                displayed_count += 1
+        
+        # 만약 표시된 시간대가 없으면 (저녁에 실행한 경우)
+        if displayed_count == 0:
+            message += "\n(오늘의 예보 시간대가 지나갔습니다)"
         
         message += "\n\n━━━━━━━━━━━━━━━"
         

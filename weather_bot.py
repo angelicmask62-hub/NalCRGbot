@@ -1,6 +1,7 @@
 import requests
 import os
 from datetime import datetime
+import pytz
 
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 CHAT_ID = os.environ.get('CHAT_ID')
@@ -41,32 +42,26 @@ def get_weather():
         wind = current['wind_speed_10m']
         weather_now = weather_codes.get(current['weather_code'], '알 수 없음')
         
-        # 현재 시간 확인
-        now = datetime.now()
-        current_hour = now.hour
+        # 한국 시간대로 현재 시간 가져오기
+        kst = pytz.timezone('Asia/Seoul')
+        now_kst = datetime.now(kst)
+        today_kst = now_kst.date()
         
-        # 오전 7시 이전이면 오늘(0), 이후면 내일(1) 날씨 표시
-        day_index = 0 if current_hour < 7 else 0
-        day_label = "오늘"
+        print(f"현재 한국 시간: {now_kst}")
+        print(f"현재 한국 날짜: {today_kst}")
         
         daily = data['daily']
-        temp_max = daily['temperature_2m_max'][day_index]
-        temp_min = daily['temperature_2m_min'][day_index]
-        rain_prob = daily['precipitation_probability_max'][day_index]
-        rain_sum = daily['precipitation_sum'][day_index]
+        temp_max = daily['temperature_2m_max'][0]
+        temp_min = daily['temperature_2m_min'][0]
+        rain_prob = daily['precipitation_probability_max'][0]
+        rain_sum = daily['precipitation_sum'][0]
         
-        sunrise = datetime.fromisoformat(daily['sunrise'][day_index]).strftime('%H:%M')
-        sunset = datetime.fromisoformat(daily['sunset'][day_index]).strftime('%H:%M')
+        sunrise = daily['sunrise'][0].split('T')[1]  # 시간만 추출
+        sunset = daily['sunset'][0].split('T')[1]
         
-        # 표시할 날짜
-        if day_index == 0:
-            display_date = now.strftime('%Y년 %m월 %d일 (%A)')
-        else:
-            from datetime import timedelta
-            tomorrow = now + timedelta(days=1)
-            display_date = tomorrow.strftime('%Y년 %m월 %d일 (%A)')
+        display_date = now_kst.strftime('%Y년 %m월 %d일 (%A)')
         
-        message = f"""🌤 {day_label}의 서울 날씨
+        message = f"""🌤 오늘의 서울 날씨
 {display_date}
 
 ━━━━━━━━━━━━━━━
@@ -77,7 +72,7 @@ def get_weather():
 💨 바람: {wind} km/h
 
 ━━━━━━━━━━━━━━━
-📊 {day_label} 예상
+📊 오늘 예상
 🔺 최고: {temp_max}°C
 🔻 최저: {temp_min}°C
 ☔️ 강수확률: {rain_prob}%"""
@@ -98,22 +93,21 @@ def get_weather():
         hourly = data['hourly']
         target_hours = [7, 10, 13, 16, 19, 22]
         
-        # 오늘 날짜 구하기
-        target_date = now.date()
-        
         displayed_count = 0
         for i in range(len(hourly['time'])):
-            time_str = datetime.fromisoformat(hourly['time'][i])
+            # API는 이미 Asia/Seoul 기준으로 반환됨
+            time_str = hourly['time'][i]  # 예: "2025-10-20T07:00"
+            hour_date = time_str.split('T')[0]  # 날짜 부분
+            hour_time = int(time_str.split('T')[1].split(':')[0])  # 시간 부분
             
-            # 오늘 날짜의 시간대만 표시
-            if time_str.date() == target_date and time_str.hour in target_hours:
-                time_display = time_str.strftime('%H시')
+            # 오늘 날짜인지 확인
+            if hour_date == str(today_kst) and hour_time in target_hours:
                 temp_h = hourly['temperature_2m'][i]
                 rain_h = hourly['precipitation_probability'][i]
                 precip_h = hourly['precipitation'][i]
                 weather_h = weather_codes.get(hourly['weather_code'][i], '')
                 
-                message += f"\n{time_display}: {temp_h}°C {weather_h}"
+                message += f"\n{hour_time:02d}시: {temp_h}°C {weather_h}"
                 
                 if rain_h > 30:
                     message += f" ☔️{rain_h}%"
@@ -122,9 +116,8 @@ def get_weather():
                 
                 displayed_count += 1
         
-        # 만약 표시된 시간대가 없으면 (저녁에 실행한 경우)
         if displayed_count == 0:
-            message += "\n(오늘의 예보 시간대가 지나갔습니다)"
+            message += "\n(표시할 시간대가 없습니다)"
         
         message += "\n\n━━━━━━━━━━━━━━━"
         
@@ -144,7 +137,9 @@ def get_weather():
         return message, None
         
     except Exception as e:
-        return None, f"날씨 정보 가져오기 실패: {str(e)}"
+        import traceback
+        error_detail = traceback.format_exc()
+        return None, f"날씨 정보 가져오기 실패:\n{str(e)}\n{error_detail}"
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"

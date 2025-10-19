@@ -14,6 +14,13 @@ def get_weather():
     response = requests.get(url)
     data = response.json()
     
+    # 에러 확인
+    if 'main' not in data:
+        error_msg = f"날씨 API 에러: {data}"
+        print(error_msg)
+        send_telegram(f"❌ 에러 발생:\n{error_msg}")
+        return None
+    
     temp = data['main']['temp']
     feels_like = data['main']['feels_like']
     desc = data['weather'][0]['description']
@@ -35,9 +42,14 @@ def send_telegram(message):
         "chat_id": CHAT_ID,
         "text": message
     }
-    requests.post(url, data=data)
+    response = requests.post(url, data=data)
+    print(f"텔레그램 응답: {response.json()}")
 
 if __name__ == "__main__":
+    print(f"API 키 확인: {WEATHER_API_KEY[:10]}..." if WEATHER_API_KEY else "API 키 없음")
     weather = get_weather()
-    send_telegram(weather)
-    print("날씨 전송 완료!")
+    if weather:
+        send_telegram(weather)
+        print("날씨 전송 완료!")
+    else:
+        print("날씨 가져오기 실패")

@@ -56,7 +56,7 @@ def get_weather():
 {today}
 
 ━━━━━━━━━━━━━━━
-📍 현재 (오전 7시 기준)
+📍 현재 날씨
 {weather_now}
 🌡 기온: {temp_now}°C (체감 {feels}°C)
 💧 습도: {humidity}%
@@ -77,17 +77,18 @@ def get_weather():
 🌆 일몰: {sunset}
 
 ━━━━━━━━━━━━━━━
-⏰ 시간대별 날씨
+⏰ 시간대별 날씨 (3시간 간격)
 """
         
+        # 오전 7시부터 3시간 간격으로 표시
         hourly = data['hourly']
-        current_hour = datetime.now().hour
+        target_hours = [7, 10, 13, 16, 19, 22]  # 오전 7시부터 3시간 간격
         
         for i in range(len(hourly['time'])):
             time_str = datetime.fromisoformat(hourly['time'][i])
             hour = time_str.hour
             
-            if hour >= current_hour:
+            if hour in target_hours:
                 time_display = time_str.strftime('%H시')
                 temp_h = hourly['temperature_2m'][i]
                 rain_h = hourly['precipitation_probability'][i]

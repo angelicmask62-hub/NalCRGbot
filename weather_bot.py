@@ -8,10 +8,9 @@ CHAT_ID = os.environ.get('CHAT_ID')
 def get_weather():
     """오전 7시에 오늘 하루 날씨 정보"""
     try:
-        # 서울 좌표
         lat, lon = 37.5665, 126.9780
         
-        url = f"https://api.open-meteo.com/v1/forecast"
+        url = "https://api.open-meteo.com/v1/forecast"
         params = {
             'latitude': lat,
             'longitude': lon,
@@ -25,7 +24,6 @@ def get_weather():
         response = requests.get(url, params=params)
         data = response.json()
         
-        # 날씨 코드 한글 변환
         weather_codes = {
             0: '☀️ 맑음', 1: '🌤 대체로 맑음', 2: '⛅️ 구름 조금', 3: '☁️ 흐림',
             45: '🌫 안개', 48: '🌫 안개',
@@ -36,7 +34,6 @@ def get_weather():
             95: '⛈ 뇌우', 96: '⛈ 우박', 99: '⛈ 우박'
         }
         
-        # 현재 날씨
         current = data['current']
         temp_now = current['temperature_2m']
         feels = current['apparent_temperature']
@@ -44,18 +41,15 @@ def get_weather():
         wind = current['wind_speed_10m']
         weather_now = weather_codes.get(current['weather_code'], '알 수 없음')
         
-        # 오늘의 최고/최저 기온
         daily = data['daily']
         temp_max = daily['temperature_2m_max'][0]
         temp_min = daily['temperature_2m_min'][0]
         rain_prob = daily['precipitation_probability_max'][0]
         rain_sum = daily['precipitation_sum'][0]
         
-        # 일출/일몰
         sunrise = datetime.fromisoformat(daily['sunrise'][0]).strftime('%H:%M')
         sunset = datetime.fromisoformat(daily['sunset'][0]).strftime('%H:%M')
         
-        # 메시지 시작
         today = datetime.now().strftime('%Y년 %m월 %d일 (%A)')
         
         message = f"""🌤 오늘의 서울 날씨
@@ -83,10 +77,9 @@ def get_weather():
 🌆 일몰: {sunset}
 
 ━━━━━━━━━━━━━━━
-⏰ 시간대별 날씨 (3시간 간격)
+⏰ 시간대별 날씨
 """
         
-        # 오늘 시간대별 (오전 7시부터 24시간)
         hourly = data['hourly']
         current_hour = datetime.now().hour
         
@@ -94,7 +87,6 @@ def get_weather():
             time_str = datetime.fromisoformat(hourly['time'][i])
             hour = time_str.hour
             
-            # 현재 시간 이후만 표시
             if hour >= current_hour:
                 time_display = time_str.strftime('%H시')
                 temp_h = hourly['temperature_2m'][i]
@@ -104,14 +96,13 @@ def get_weather():
                 
                 message += f"\n{time_display}: {temp_h}°C {weather_h}"
                 
-                if rain_h > 30:  # 30% 이상일 때만 표시
+                if rain_h > 30:
                     message += f" ☔️{rain_h}%"
                 if precip_h > 0:
                     message += f" ({precip_h}mm)"
         
         message += "\n\n━━━━━━━━━━━━━━━"
         
-        # 날씨에 따른 코멘트
         if rain_prob > 70:
             message += "\n☂️ 우산 꼭 챙기세요!"
         elif rain_prob > 30:
